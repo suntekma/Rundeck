@@ -1,0 +1,129 @@
+image: alpine:latest
+
+variables:
+
+  CHARTPATH: charts/rundeck
+  CHARTNAME: rundeck
+  IMAGE_TAG: ${CI_COMMIT_TAG}
+  TILLER_NAMESPACE: it-neworkflow
+  TLS: neweggorg-tls
+  REPLICA: 1
+  # RELEASE_NAME: ${CI_ENVIRONMENT_SLUG}-${CI_PROJECT_PATH_SLUG}
+  RELEASE_NAME: ${CI_ENVIRONMENT_SLUG}-rundeck
+
+
+stages:
+  - build_image
+  - test
+  - deploy
+
+build_docker_image:
+  stage: build_image
+  image: docker:git
+  services:
+    - docker:dind
+  variables:
+    DOCKER_DRIVER: overlay2
+    IMAGE_TAG: ${CI_COMMIT_TAG}
+  before_script:
+    - docker --version
+    - docker login -u ${CI_REGISTRY_USER} -p ${CI_REGISTRY_PASSWORD} ${CI_REGISTRY}
+  script:
+    - docker build -t ${CI_REGISTRY_IMAGE}:${IMAGE_TAG} .
+    - docker push ${CI_REGISTRY_IMAGE}:${IMAGE_TAG}
+  only:
+    - tags
+
+
+helm_lint:
+  stage: test
+  image: registry.newegg.org/it/docker-helm-kubectl:1.11.5-2.11.0
+  before_script:
+    - mkdir -p /root/.kube
+    - echo ${e9k8s_kube_config} | base64 -d > /root/.kube/config
+    - kubectl version
+    - helm init --skip-refresh --service-account tiller --history-max=1 --tiller-namespace $TILLER_NAMESPACE
+    - helm ls
+    - helm version
+  script:
+    - echo Dry Run Deploy ${CI_REGISTRY_IMAGE}:${IMAGE_TAG} to ${CI_ENVIRONMENT_SLUG}
+    - helm lint ${CHARTPATH} --tiller-namespace $TILLER_NAMESPACE
+    - helm install --dry-run --debug ${CHARTPATH} --tiller-namespace $TILLER_NAMESPACE --name ${CHARTNAME}
+  dependencies: []
+  only:
+    - tags
+
+deploy_e9k8s:
+  stage: deploy
+  image: registry.newegg.org/it/docker-helm-kubectl:1.11.5-2.11.0
+  variables:
+    DOMAIN: e9k8s-rundeck.newegg.org
+  before_script:
+    - mkdir -p /root/.kube
+    - echo ${e9k8s_kube_config} | base64 -d > /root/.kube/config
+    - kubectl version
+    - helm init --skip-refresh --service-account tiller --history-max=1 --tiller-namespace $TILLER_NAMESPACE
+    - helm ls
+    - helm version
+  script:
+    - echo Will Deploy ${CI_REGISTRY_IMAGE}:${IMAGE_TAG} to ${CI_ENVIRONMENT_SLUG} on ${DOMAIN}
+    - helm ls --tiller-namespace $TILLER_NAMESPACE
+    - >
+      helm upgrade --install ${RELEASE_NAME}
+      --namespace=$TILLER_NAMESPACE
+      --tiller-namespace=$TILLER_NAMESPACE
+      --set replicaCount=$REPLICA
+      --set image.repository=${CI_REGISTRY_IMAGE}
+      --set image.tag=${IMAGE_TAG}
+      --set ingress.enabled=true
+      --set ingress.hosts[0]=${DOMAIN}
+      --set ingress.annotations."kubernetes\.io/ingress\.class"=nginx
+      --set ingress.tls[0].secretName=${TLS}
+      --set ingress.tls[0].hosts[0]=${DOMAIN}
+      --set externalUrl=https://${DOMAIN}
+      ${CHARTPATH}
+  dependencies: []
+  environment:
+    name: e9k8s
+    url: https://${DOMAIN}
+  only:
+    - tags
+
+
+
+deploy_e11k8s:
+  stage: deploy
+  image: registry.newegg.org/it/docker-helm-kubectl:1.11.5-2.11.0
+  variables:
+    DOMAIN: rundeck.newegg.org
+  before_script:
+    - mkdir -p /root/.kube
+    - echo ${e11k8s_kube_config} | base64 -d > /root/.kube/config
+    - kubectl version
+    - helm init --skip-refresh --service-account tiller --history-max=1 --tiller-namespace $TILLER_NAMESPACE
+    - helm ls
+    - helm version
+  script:
+    - echo Will Deploy ${CI_REGISTRY_IMAGE}:${IMAGE_TAG} to ${CI_ENVIRONMENT_SLUG} on ${DOMAIN}
+    - helm ls --tiller-namespace $TILLER_NAMESPACE
+    - >
+      helm upgrade --install ${RELEASE_NAME}
+      --namespace=$TILLER_NAMESPACE
+      --tiller-namespace=$TILLER_NAMESPACE
+      --set replicaCount=$REPLICA
+      --set image.repository=${CI_REGISTRY_IMAGE}
+      --set image.tag=${IMAGE_TAG}
+      --set ingress.enabled=true
+      --set ingress.hosts[0]=${DOMAIN}
+      --set ingress.annotations."kubernetes\.io/ingress\.class"=nginx
+      --set ingress.tls[0].secretName=${TLS}
+      --set ingress.tls[0].hosts[0]=${DOMAIN}
+      --set externalUrl=https://${DOMAIN}
+      ${CHARTPATH}
+  dependencies: []
+  environment:
+    name: e11k8s
+    url: https://${DOMAIN}
+  when: manual
+  only:
+    - tags

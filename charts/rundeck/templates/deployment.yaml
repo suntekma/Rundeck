@@ -1,0 +1,92 @@
+apiVersion: apps/v1beta2
+kind: Deployment
+metadata:
+  name: {{ include "rundeck.fullname" . }}
+  labels:
+    app.kubernetes.io/name: {{ include "rundeck.name" . }}
+    helm.sh/chart: {{ include "rundeck.chart" . }}
+    app.kubernetes.io/instance: {{ .Release.Name }}
+    app.kubernetes.io/managed-by: {{ .Release.Service }}
+spec:
+  replicas: {{ .Values.replicaCount }}
+  selector:
+    matchLabels:
+      app.kubernetes.io/name: {{ include "rundeck.name" . }}
+      app.kubernetes.io/instance: {{ .Release.Name }}
+  template:
+    metadata:
+      labels:
+        app.kubernetes.io/name: {{ include "rundeck.name" . }}
+        app.kubernetes.io/instance: {{ .Release.Name }}
+    spec:
+      initContainers:
+      - name: "remove-lost-found"
+        image: busybox
+        imagePullPolicy: {{ .Values.imagePullPolicy | quote }}
+        command:  ["rm", "-fr", "/var/lib/mysql/lost+found"]
+        volumeMounts:
+        - name: mysql
+          mountPath: /var/lib/mysql
+      {{- if .Values.imageCredentials.enabled }}
+      imagePullSecrets:
+        - name: {{ include "rundeck.fullname" . }}
+      {{- end }}
+      containers:
+        - name: {{ .Chart.Name }}
+          image: "{{ .Values.image.repository }}:{{ .Values.image.tag }}"
+          imagePullPolicy: {{ .Values.image.pullPolicy }}
+          ports:
+            - name: http
+              containerPort: 4440
+              protocol: TCP
+          livenessProbe:
+            httpGet:
+              path: /
+              port: http
+            initialDelaySeconds: 120
+          readinessProbe:
+            httpGet:
+              path: /
+              port: http
+            initialDelaySeconds: 120
+          resources:
+{{ toYaml .Values.resources | indent 12 }}
+          env:
+          - name: EXTERNAL_SERVER_URL
+            value: {{ .Values.externalUrl | quote }}
+          volumeMounts:
+            - mountPath: /etc/rundeck
+              name: config
+            - mountPath: /var/lib/mysql
+              name: mysql
+            - mountPath: /var/rundeck
+              name: project
+      volumes:
+      - name: config
+        emptyDir: {}
+      - name: mysql
+      {{- if .Values.persistence.mysql.enabled }}
+        persistentVolumeClaim:
+          claimName: {{ .Values.persistence.mysql.existingClaim | default (printf "%s-mysql" (include "rundeck.fullname" .)) }}
+      {{- else }}
+        emptyDir: {}
+      {{- end }}
+      - name: project
+      {{- if .Values.persistence.project.enabled }}
+        persistentVolumeClaim:
+          claimName: {{ .Values.persistence.project.existingClaim | default (printf "%s-project" (include "rundeck.fullname" .)) }}
+      {{- else }}
+        emptyDir: {}
+      {{- end -}}
+    {{- with .Values.nodeSelector }}
+      nodeSelector:
+{{ toYaml . | indent 8 }}
+    {{- end }}
+    {{- with .Values.affinity }}
+      affinity:
+{{ toYaml . | indent 8 }}
+    {{- end }}
+    {{- with .Values.tolerations }}
+      tolerations:
+{{ toYaml . | indent 8 }}
+    {{- end }}

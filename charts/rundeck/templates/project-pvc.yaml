@@ -1,0 +1,28 @@
+{{- if and .Values.persistence.project.enabled (not .Values.persistence.project.existingClaim) }}
+kind: PersistentVolumeClaim
+apiVersion: v1
+metadata:
+  name: {{ include "rundeck.fullname" . }}-project
+{{- with .Values.persistence.project.annotations  }}
+  annotations:
+{{ toYaml . | indent 4 }}
+{{- end }}
+  labels:
+    app.kubernetes.io/name: {{ include "rundeck.name" . }}
+    helm.sh/chart: {{ include "rundeck.chart" . }}
+    app.kubernetes.io/instance: {{ .Release.Name }}
+    app.kubernetes.io/managed-by: {{ .Release.Service }}
+spec:
+  accessModes:
+    - {{ .Values.persistence.project.accessMode | quote }}
+  resources:
+    requests:
+      storage: {{ .Values.persistence.project.size | quote }}
+{{- if .Values.persistence.project.storageClass }}
+{{- if (eq "-" .Values.persistence.project.storageClass) }}
+  storageClassName: ""
+{{- else }}
+  storageClassName: "{{ .Values.persistence.project.storageClass }}"
+{{- end }}
+{{- end }}
+{{- end }}

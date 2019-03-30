@@ -1,0 +1,28 @@
+{{- if and .Values.persistence.mysql.enabled (not .Values.persistence.mysql.existingClaim) }}
+kind: PersistentVolumeClaim
+apiVersion: v1
+metadata:
+  name: {{ include "rundeck.fullname" . }}-mysql
+{{- with .Values.persistence.mysql.annotations  }}
+  annotations:
+{{ toYaml . | indent 4 }}
+{{- end }}
+  labels:
+    app.kubernetes.io/name: {{ include "rundeck.name" . }}
+    helm.sh/chart: {{ include "rundeck.chart" . }}
+    app.kubernetes.io/instance: {{ .Release.Name }}
+    app.kubernetes.io/managed-by: {{ .Release.Service }}
+spec:
+  accessModes:
+    - {{ .Values.persistence.mysql.accessMode | quote }}
+  resources:
+    requests:
+      storage: {{ .Values.persistence.mysql.size | quote }}
+{{- if .Values.persistence.mysql.storageClass }}
+{{- if (eq "-" .Values.persistence.mysql.storageClass) }}
+  storageClassName: ""
+{{- else }}
+  storageClassName: "{{ .Values.persistence.mysql.storageClass }}"
+{{- end }}
+{{- end }}
+{{- end }}
