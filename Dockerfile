@@ -44,7 +44,7 @@ RUN export DEBIAN_FRONTEND=noninteractive && \
     cd - && \
     apt-get clean && \
     rm -rf /var/lib/apt/lists/*
-RUN pip install requests
+RUN pip install requests;pywinrm
 ADD content/ /
 RUN chmod u+x /opt/run && \
     mkdir -p /var/log/supervisor && mkdir -p /opt/supervisor && \
