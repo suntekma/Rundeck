@@ -18,7 +18,7 @@ ENV SERVER_URL=https://localhost:4443 \
 RUN export DEBIAN_FRONTEND=noninteractive && \
     echo "deb http://ftp.debian.org/debian stretch-backports main" >> /etc/apt/sources.list && \
     apt-get -qq update && \
-    apt-get -qqy install -t stretch-backports --no-install-recommends bash openjdk-8-jre-headless ca-certificates-java supervisor procps sudo ca-certificates openssh-client mysql-server mysql-client postgresql-9.6 postgresql-client-9.6 pwgen curl git uuid-runtime parallel jq && \
+    apt-get -qqy install -t stretch-backports --no-install-recommends bash openjdk-8-jre-headless ca-certificates-java supervisor procps sudo ca-certificates openssh-client mysql-server mysql-client postgresql-9.6 postgresql-client-9.6 pwgen curl git uuid-runtime parallel jq vim python-pip && \
     cd /tmp/ && \
     curl -Lo /tmp/rundeck.deb https://dl.bintray.com/rundeck/rundeck-deb/rundeck_3.0.11.20181221-1.201812212337_all.deb && \
     echo 'b627d6e5d3cdaaa6d0a6e67d995daf92739a1dc1472a8efdc1ce1b46398f5d0c  rundeck.deb' > /tmp/rundeck.sig && \
@@ -38,14 +38,13 @@ RUN export DEBIAN_FRONTEND=noninteractive && \
     curl -Lo /var/lib/rundeck/libext/rundeck-salt-plugin-0.4.jar https://github.com/rundeck-plugins/salt-step/releases/download/0.4/rundeck-salt-plugin-0.4.jar && \
     curl -Lo /var/lib/rundeck/libext/rundeck-winrm-plugin-1.3.8.jar https://github.com/rundeck-plugins/rundeck-winrm-plugin/releases/download/v1.3.8/rundeck-winrm-plugin-1.3.8.jar && \
     curl -Lo /var/lib/rundeck/libext/rundeck-json-plugin-1.1.jar  https://github.com/rundeck-plugins/rundeck-json-plugin/releases/download/v1.1/rundeck-json-plugin-1.1.jar && \
-
     echo 'd23b31ec4791dff1a7051f1f012725f20a1e3e9f85f64a874115e46df77e00b5  rundeck-slack-incoming-webhook-plugin-0.6.jar' > /tmp/rundeck-slack-plugin.sig && \
     cd /var/lib/rundeck/libext/ && \
     shasum -a256 -c /tmp/rundeck-slack-plugin.sig && \
     cd - && \
     apt-get clean && \
     rm -rf /var/lib/apt/lists/*
-
+RUN pip install requests
 ADD content/ /
 RUN chmod u+x /opt/run && \
     mkdir -p /var/log/supervisor && mkdir -p /opt/supervisor && \
